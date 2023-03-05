@@ -15,7 +15,7 @@
 
     let fft_waveform;
     let fft;
-    const fft_smooth = 0.7;
+    const fft_smooth = 0.6;
     const fft_bins = 64;
 
     let filter;
@@ -26,17 +26,17 @@
       audio_ctx.audioIn = new p5.AudioIn();
       audio_ctx.audioIn.start();
 
-      fft_waveform = new p5.FFT(0.1, 2048);
+      fft_waveform = new p5.FFT(0.1, 1024);
       fft_waveform.setInput(audio_ctx.audioIn);
 
       filter = new p5.HighPass();
       filter.freq(2000);
-      // filter.res(50);
+      filter.res(0.0);
       filter.disconnect();
       audio_ctx.audioIn.connect(filter);
 
       fft = new p5.FFT(fft_smooth, fft_bins);
-      fft.setInput(filter);
+      fft.setInput(audio_ctx.audioIn);
 
       p5_object = _p5;
     };
@@ -68,14 +68,17 @@
       }
     }
 
+    let last_energy = 0;
     _p5.draw = () => {
       _p5.clear();
 
       let spectrum = fft.analyze();
-      let energy = fft.getEnergy("lowMid");
+      let energy = fft.getEnergy("mid");
+      let energy_diff = Math.abs(energy - last_energy);
 
       let circle_max_width = max_width * 0.5;
-      circle_max_width = circle_max_width + circle_max_width * (energy / 255);
+      circle_max_width =
+        circle_max_width / 2 + circle_max_width * (energy / 255) * 1.2;
       let scale_factor = circle_max_width / max_width;
 
       // draw gradient
@@ -103,23 +106,27 @@
       // draw rectangles
       _p5.noStroke();
       _p5.fill(255, 255, 255);
-      let rect_width = 7 * scale_factor;
-      let rect_height = circle_max_width / 2;
+      let rect_width = 10 * scale_factor;
+      let rect_height = (circle_max_width / 2) * 0.5;
 
       _p5.push();
       _p5.translate(width / 2, height / 2);
 
+      // drop last bins of fft
+      spectrum = spectrum.slice(0, spectrum.length - 6);
+
+      let fft_len = spectrum.length;
       for (let r = 0; r < 4; r++) {
         _p5.push();
         _p5.rotate(_p5.TWO_PI / 4);
-        for (let i = 0; i < fft_bins; i++) {
+        for (let i = 0; i < fft_len; i++) {
           _p5.push();
-          _p5.rotate(((i / fft_bins) * _p5.TWO_PI) / 4 + _p5.HALF_PI * r);
+          _p5.rotate(((i / fft_len) * _p5.TWO_PI) / 4 + _p5.HALF_PI * r);
           _p5.translate(-rect_width / 2, 0);
           let h = rect_height;
           let sample = spectrum[i];
           if (r === 1 || r === 3) {
-            sample = spectrum[fft_bins - i - 1];
+            sample = spectrum[fft_len - i - 1];
           }
           h = h * (sample / 255);
 
@@ -128,6 +135,26 @@
         }
         _p5.pop();
       }
+
+      // for (let r = 0; r < 2; r++) {
+      //   _p5.push();
+      //   _p5.rotate(_p5.TWO_PI / 2);
+      //   for (let i = 0; i < fft_len; i++) {
+      //     _p5.push();
+      //     _p5.rotate(((i / fft_len) * _p5.TWO_PI) / 2 + _p5.PI * r);
+      //     _p5.translate(-rect_width / 2, 0);
+      //     let h = rect_height;
+      //     let sample = spectrum[i];
+      //     if (r === 1 || r === 3) {
+      //       sample = spectrum[fft_len - i - 1];
+      //     }
+      //     h = h * (sample / 255);
+
+      //     _p5.rect(0, circle_max_width / 2 + 10, rect_width, h);
+      //     _p5.pop();
+      //   }
+      //   _p5.pop();
+      // }
 
       _p5.pop();
 
@@ -160,7 +187,6 @@
       _p5.text("OFF", _p5.width / 2, _p5.height / 2 + circle_max_width / 4);
 
       let waveform = fft_waveform.waveform();
-      let normalized_waveform = [];
 
       let max = 0;
       for (let i = 0; i < waveform.length; i++) {
@@ -168,12 +194,28 @@
           max = waveform[i];
         }
       }
+
+      // generate gauss window
+      let gauss_window = [];
+      let gauss_window_len = waveform.length;
+      let gauss_window_sigma = 300;
+
+      for (let i = 0; i < gauss_window_len; i++) {
+        let x = i - gauss_window_len / 2;
+        let g = _p5.exp(
+          (-0.5 * (x * x)) / (gauss_window_sigma * gauss_window_sigma)
+        );
+        gauss_window.push(g);
+      }
+
       for (let i = 0; i < waveform.length; i++) {
         waveform[i] = waveform[i] / max;
+        waveform[i] = gauss_window[i] * waveform[i];
       }
 
       _p5.noFill();
       _p5.strokeWeight(4);
+      _p5.stroke(0, 0, 0);
 
       _p5.beginShape();
       for (let i = 0; i < waveform.length; i++) {
@@ -185,6 +227,8 @@
         _p5.vertex(x, y);
       }
       _p5.endShape();
+
+      last_energy = energy;
     };
 
     _p5.windowResized = () => {
@@ -212,11 +256,15 @@
     function closeFullscreen() {
       if (document.exitFullscreen) {
         document.exitFullscreen();
+        // @ts-ignore
       } else if (document.webkitExitFullscreen) {
         /* Safari */
+        // @ts-ignore
         document.webkitExitFullscreen();
+        // @ts-ignore
       } else if (document.msExitFullscreen) {
         /* IE11 */
+        // @ts-ignore
         document.msExitFullscreen();
       }
       fullscreen = false;
@@ -237,7 +285,7 @@
     };
   };
 
-  let code_line = 0;
+  let code_line = Math.floor(Math.random() * code_getter().split("\n").length);
   let code_lines_on_screen = 100;
   const code_lines_generator = () => {
     let code_lines = code_getter().split("\n");
@@ -255,6 +303,13 @@
         code_lines.slice(0, code_lines_on_screen - code_lines_return.length)
       );
     }
+
+    // replace tabs and spaces
+    code_lines_return = code_lines_return.map((line, i) => {
+      return line
+        .replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;")
+        .replace(/ /g, "&nbsp;");
+    });
 
     return code_lines_return;
   };
@@ -274,7 +329,7 @@
   <div class="background-code">
     {#each code_lines as line}
       {#if line}
-        <p>{line}</p>
+        <p>{@html line}</p>
       {:else}
         <p>&nbsp;</p>
       {/if}
@@ -300,7 +355,7 @@
     top: 0;
     left: 0;
     z-index: -1;
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(0, 255, 0, 0.9);
     padding: 1rem;
     font-family: monospace;
     font-size: 1.9vw;
