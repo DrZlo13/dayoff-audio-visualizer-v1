@@ -285,7 +285,8 @@
     };
   };
 
-  let code_line = Math.floor(Math.random() * code_getter().split("\n").length);
+  let code_line = 0;
+  // Math.floor(Math.random() * code_getter().split("\n").length);
   let code_lines_on_screen = 100;
   const code_lines_generator = () => {
     let code_lines = code_getter().split("\n");
@@ -308,7 +309,9 @@
     code_lines_return = code_lines_return.map((line, i) => {
       return line
         .replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;")
-        .replace(/ /g, "&nbsp;");
+        .replace(/ /g, "&nbsp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
     });
 
     return code_lines_return;
