@@ -1,0 +1,39 @@
+name: 'Build'
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Decontaminate previous build leftovers'
+        run: |
+          if [ -d .git ]; then
+              git submodule status || git checkout "$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          fi
+
+      - name: 'Checkout code'
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: 'Setup NodeJS'
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 'Build app'
+        run: |
+          npm install
+          npm run build
+
+      - name: 'Upload build to Github Pages'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: 'build'
