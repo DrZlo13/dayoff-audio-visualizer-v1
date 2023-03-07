@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - master
-  pull_request:
 jobs:
-  main:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: 'Decontaminate previous build leftovers'
@@ -21,7 +20,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: 'Setup NodeJS'
+      - name: 'Setup NodeJS 18'
         uses: actions/setup-node@v3
         with:
           node-version: 18
